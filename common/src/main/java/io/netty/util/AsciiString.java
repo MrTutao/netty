@@ -688,7 +688,7 @@ public final class AsciiString implements CharSequence, Comparable<CharSequence>
             return INDEX_NOT_FOUND;
         }
         final byte firstCharAsByte = c2b0(firstChar);
-        final int len = offset + start + length - subCount;
+        final int len = offset + length - subCount;
         for (int i = start + offset; i <= len; ++i) {
             if (value[i] == firstCharAsByte) {
                 int o1 = i, o2 = 0;
@@ -722,7 +722,7 @@ public final class AsciiString implements CharSequence, Comparable<CharSequence>
         }
 
         final byte chAsByte = c2b0(ch);
-        final int len = offset + start + length;
+        final int len = offset + length;
         for (int i = start + offset; i < len; ++i) {
             if (value[i] == chAsByte) {
                 return i - offset;
@@ -773,7 +773,7 @@ public final class AsciiString implements CharSequence, Comparable<CharSequence>
         }
         final byte firstCharAsByte = c2b0(firstChar);
         final int end = offset + start;
-        for (int i = offset + start + length - subCount; i >= end; --i) {
+        for (int i = offset + length - subCount; i >= end; --i) {
             if (value[i] == firstCharAsByte) {
                 int o1 = i, o2 = 0;
                 while (++o2 < subCount && b2c(value[++o1]) == subString.charAt(o2)) {
@@ -1115,7 +1115,7 @@ public final class AsciiString implements CharSequence, Comparable<CharSequence>
             }
         }
 
-        return res.toArray(new AsciiString[res.size()]);
+        return res.toArray(new AsciiString[0]);
     }
 
     /**

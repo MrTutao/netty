@@ -15,9 +15,6 @@
  */
 package io.netty.resolver.dns;
 
-import static io.netty.resolver.dns.DnsAddressDecoder.decodeAddress;
-
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
 
@@ -57,8 +54,8 @@ final class DnsRecordResolveContext extends DnsResolveContext<DnsRecord> {
     }
 
     @Override
-    boolean containsExpectedResult(List<DnsRecord> finalResult) {
-        return true;
+    List<DnsRecord> filterResults(List<DnsRecord> unfiltered) {
+        return unfiltered;
     }
 
     @Override

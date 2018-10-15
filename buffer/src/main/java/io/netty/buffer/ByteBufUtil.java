@@ -168,7 +168,7 @@ public final class ByteBufUtil {
         final int intCount = aLen >>> 2;
         final int byteCount = aLen & 3;
 
-        int hashCode = 1;
+        int hashCode = EmptyByteBuf.EMPTY_BYTE_BUF_HASH_CODE;
         int arrayIndex = buffer.readerIndex();
         if (buffer.order() == ByteOrder.BIG_ENDIAN) {
             for (int i = intCount; i > 0; i --) {
@@ -498,7 +498,10 @@ public final class ByteBufUtil {
      */
     public static int reserveAndWriteUtf8(ByteBuf buf, CharSequence seq, int reserveBytes) {
         for (;;) {
-            if (buf instanceof AbstractByteBuf) {
+            if (buf instanceof WrappedCompositeByteBuf) {
+                // WrappedCompositeByteBuf is a sub-class of AbstractByteBuf so it needs special handling.
+                buf = buf.unwrap();
+            } else if (buf instanceof AbstractByteBuf) {
                 AbstractByteBuf byteBuf = (AbstractByteBuf) buf;
                 byteBuf.ensureWritable0(reserveBytes);
                 int written = writeUtf8(byteBuf, byteBuf.writerIndex, seq, seq.length());
@@ -665,7 +668,10 @@ public final class ByteBufUtil {
             buf.writeBytes(asciiString.array(), asciiString.arrayOffset(), len);
         } else {
             for (;;) {
-                if (buf instanceof AbstractByteBuf) {
+                if (buf instanceof WrappedCompositeByteBuf) {
+                    // WrappedCompositeByteBuf is a sub-class of AbstractByteBuf so it needs special handling.
+                    buf = buf.unwrap();
+                } else if (buf instanceof AbstractByteBuf) {
                     AbstractByteBuf byteBuf = (AbstractByteBuf) buf;
                     byteBuf.ensureWritable0(len);
                     int written = writeAscii(byteBuf, byteBuf.writerIndex, seq, len);
