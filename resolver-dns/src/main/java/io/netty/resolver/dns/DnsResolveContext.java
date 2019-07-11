@@ -39,6 +39,7 @@ import io.netty.util.concurrent.Promise;
 import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.PlatformDependent;
 import io.netty.util.internal.StringUtil;
+import io.netty.util.internal.SuppressJava6Requirement;
 import io.netty.util.internal.ThrowableUtil;
 
 import java.net.InetAddress;
@@ -63,15 +64,15 @@ import static java.lang.Math.min;
 abstract class DnsResolveContext<T> {
 
     private static final RuntimeException NXDOMAIN_QUERY_FAILED_EXCEPTION = ThrowableUtil.unknownStackTrace(
-            new RuntimeException("No answer found and NXDOMAIN response code returned"),
+            DnsResolveContextException.newStatic("No answer found and NXDOMAIN response code returned"),
             DnsResolveContext.class,
             "onResponse(..)");
     private static final RuntimeException CNAME_NOT_FOUND_QUERY_FAILED_EXCEPTION = ThrowableUtil.unknownStackTrace(
-            new RuntimeException("No matching CNAME record found"),
+            DnsResolveContextException.newStatic("No matching CNAME record found"),
             DnsResolveContext.class,
             "onResponseCNAME(..)");
     private static final RuntimeException NO_MATCHING_RECORD_QUERY_FAILED_EXCEPTION = ThrowableUtil.unknownStackTrace(
-            new RuntimeException("No matching record type found"),
+            DnsResolveContextException.newStatic("No matching record type found"),
             DnsResolveContext.class,
             "onResponseAorAAAA(..)");
     private static final RuntimeException UNRECOGNIZED_TYPE_QUERY_FAILED_EXCEPTION = ThrowableUtil.unknownStackTrace(
@@ -79,7 +80,7 @@ abstract class DnsResolveContext<T> {
             DnsResolveContext.class,
             "onResponse(..)");
     private static final RuntimeException NAME_SERVERS_EXHAUSTED_EXCEPTION = ThrowableUtil.unknownStackTrace(
-            new RuntimeException("No name servers returned an answer"),
+            DnsResolveContextException.newStatic("No name servers returned an answer"),
             DnsResolveContext.class,
             "tryToFinishResolve(..)");
 
@@ -115,6 +116,27 @@ abstract class DnsResolveContext<T> {
         this.nameServerAddrs = ObjectUtil.checkNotNull(nameServerAddrs, "nameServerAddrs");
         maxAllowedQueries = parent.maxQueriesPerResolve();
         allowedQueries = maxAllowedQueries;
+    }
+
+    static final class DnsResolveContextException extends RuntimeException {
+
+        private DnsResolveContextException(String message) {
+            super(message);
+        }
+
+        @SuppressJava6Requirement(reason = "uses Java 7+ Exception.<init>(String, Throwable, boolean, boolean)" +
+                " but is guarded by version checks")
+        private DnsResolveContextException(String message, boolean shared) {
+            super(message, null, false, true);
+            assert shared;
+        }
+
+        static DnsResolveContextException newStatic(String message) {
+            if (PlatformDependent.javaVersion() >= 7) {
+                return new DnsResolveContextException(message, true);
+            }
+            return new DnsResolveContextException(message);
+        }
     }
 
     /**
@@ -158,6 +180,12 @@ abstract class DnsResolveContext<T> {
     abstract List<T> filterResults(List<T> unfiltered);
 
     abstract boolean isCompleteEarly(T resolved);
+
+    /**
+     * Returns {@code true} if we should allow duplicates in the result or {@code false} if no duplicates should
+     * be included.
+     */
+    abstract boolean isDuplicateAllowed();
 
     /**
      * Caches a successful resolution.
@@ -706,7 +734,7 @@ abstract class DnsResolveContext<T> {
             if (finalResult == null) {
                 finalResult = new ArrayList<T>(8);
                 finalResult.add(converted);
-            } else if (!finalResult.contains(converted)) {
+            } else if (isDuplicateAllowed() || !finalResult.contains(converted)) {
                 finalResult.add(converted);
             } else {
                 shouldRelease = true;
