@@ -33,6 +33,7 @@ import io.netty.util.ReferenceCounted;
 import io.netty.util.collection.IntObjectHashMap;
 import io.netty.util.collection.IntObjectMap;
 import io.netty.util.internal.UnstableApi;
+import io.netty.util.internal.logging.InternalLogLevel;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 
@@ -159,12 +160,6 @@ public class Http2FrameCodec extends Http2ConnectionHandler {
     private int numBufferedStreams;
     private final IntObjectMap<DefaultHttp2FrameStream> frameStreamToInitializeMap =
             new IntObjectHashMap<DefaultHttp2FrameStream>(8);
-    private final ChannelFutureListener bufferedStreamsListener = new ChannelFutureListener() {
-        @Override
-        public void operationComplete(ChannelFuture future) {
-            numBufferedStreams--;
-        }
-    };
 
     Http2FrameCodec(Http2ConnectionEncoder encoder, Http2ConnectionDecoder decoder, Http2Settings initialSettings,
                     boolean decoupleCloseAndGoAway) {
@@ -205,6 +200,15 @@ public class Http2FrameCodec extends Http2ConnectionHandler {
                 }
             });
         }
+    }
+
+    /**
+     * Retrieve the number of streams currently in the process of being initialized.
+     *
+     * This is package-private for testing only.
+     */
+    int numInitializingStreams() {
+        return frameStreamToInitializeMap.size();
     }
 
     @Override
@@ -413,10 +417,28 @@ public class Http2FrameCodec extends Http2ConnectionHandler {
 
             encoder().writeHeaders(ctx, streamId, headersFrame.headers(), headersFrame.padding(),
                     headersFrame.isEndStream(), promise);
+
             if (!promise.isDone()) {
                 numBufferedStreams++;
-                promise.addListener(bufferedStreamsListener);
+                // Clean up the stream being initialized if writing the headers fails and also
+                // decrement the number of buffered streams.
+                promise.addListener(new ChannelFutureListener() {
+                    @Override
+                    public void operationComplete(ChannelFuture channelFuture) {
+                        numBufferedStreams--;
+
+                        handleHeaderFuture(channelFuture, streamId);
+                    }
+                });
+            } else {
+                handleHeaderFuture(promise, streamId);
             }
+        }
+    }
+
+    private void handleHeaderFuture(ChannelFuture channelFuture, int streamId) {
+        if (!channelFuture.isSuccess()) {
+            frameStreamToInitializeMap.remove(streamId);
         }
     }
 
@@ -431,15 +453,14 @@ public class Http2FrameCodec extends Http2ConnectionHandler {
     }
 
     private final class ConnectionListener extends Http2ConnectionAdapter {
-
         @Override
         public void onStreamAdded(Http2Stream stream) {
             DefaultHttp2FrameStream frameStream = frameStreamToInitializeMap.remove(stream.id());
 
-             if (frameStream != null) {
-                 frameStream.setStreamAndProperty(streamKey, stream);
-             }
-         }
+            if (frameStream != null) {
+                frameStream.setStreamAndProperty(streamKey, stream);
+            }
+        }
 
         @Override
         public void onStreamActive(Http2Stream stream) {
@@ -509,8 +530,12 @@ public class Http2FrameCodec extends Http2ConnectionHandler {
 
     private void onHttp2UnknownStreamError(@SuppressWarnings("unused") ChannelHandlerContext ctx, Throwable cause,
                                    Http2Exception.StreamException streamException) {
-        // Just log....
-        LOG.warn("Stream exception thrown for unknown stream {}.", streamException.streamId(), cause);
+        // It is normal to hit a race condition where we still receive frames for a stream that this
+        // peer has deemed closed, such as if this peer sends a RST(CANCEL) to discard the request.
+        // Since this is likely to be normal we log at DEBUG level.
+        InternalLogLevel level =
+            streamException.error() == Http2Error.STREAM_CLOSED ? InternalLogLevel.DEBUG : InternalLogLevel.WARN;
+        LOG.log(level, "Stream exception thrown for unknown stream {}.", streamException.streamId(), cause);
     }
 
     @Override
