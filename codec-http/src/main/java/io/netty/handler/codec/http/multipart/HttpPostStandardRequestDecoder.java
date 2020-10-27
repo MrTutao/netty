@@ -5,7 +5,7 @@
  * version 2.0 (the "License"); you may not use this file except in compliance
  * with the License. You may obtain a copy of the License at:
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *   https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -656,7 +656,7 @@ public class HttpPostStandardRequestDecoder implements InterfaceHttpPostRequestD
     }
 
     private static ByteBuf decodeAttribute(ByteBuf b, Charset charset) {
-        int firstEscaped = b.forEachByte(new ByteProcessor.IndexOfProcessor((byte) '%'));
+        int firstEscaped = b.forEachByte(new UrlEncodedDetector());
         if (firstEscaped == -1) {
             return null; // nothing to decode
         }
@@ -714,6 +714,13 @@ public class HttpPostStandardRequestDecoder implements InterfaceHttpPostRequestD
         factory.removeHttpDataFromClean(request, data);
     }
 
+    private static final class UrlEncodedDetector implements ByteProcessor {
+        @Override
+        public boolean process(byte value) throws Exception {
+            return value != '%' && value != '+';
+        }
+    }
+
     private static final class UrlDecoder implements ByteProcessor {
 
         private final ByteBuf output;
@@ -742,6 +749,8 @@ public class HttpPostStandardRequestDecoder implements InterfaceHttpPostRequestD
                 }
             } else if (value == '%') {
                 nextEscapedIdx = 1;
+            } else if (value == '+') {
+                output.writeByte(' ');
             } else {
                 output.writeByte(value);
             }

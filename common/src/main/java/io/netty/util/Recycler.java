@@ -5,7 +5,7 @@
  * version 2.0 (the "License"); you may not use this file except in compliance
  * with the License. You may obtain a copy of the License at:
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *   https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -377,9 +377,9 @@ public abstract class Recycler<T> {
         void add(DefaultHandle<?> handle) {
             handle.lastRecycledId = id;
 
-            // While we also enforce the recycling ratio one we transfer objects from the WeakOrderQueue to the Stack
+            // While we also enforce the recycling ratio when we transfer objects from the WeakOrderQueue to the Stack
             // we better should enforce it as well early. Missing to do so may let the WeakOrderQueue grow very fast
-            // without control if the Stack
+            // without control
             if (handleRecycleCount < interval) {
                 handleRecycleCount++;
                 // Drop the item to prevent recycling to aggressive.
