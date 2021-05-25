@@ -384,6 +384,10 @@ public final class OpenSsl {
         }
     }
 
+    static boolean isSessionCacheSupported() {
+        return version() >= 0x10100000L;
+    }
+
     /**
      * Returns a self-signed {@link X509Certificate} for {@code netty.io}.
      */
@@ -555,7 +559,9 @@ public final class OpenSsl {
 
     static long memoryAddress(ByteBuf buf) {
         assert buf.isDirect();
-        return buf.hasMemoryAddress() ? buf.memoryAddress() : Buffer.address(buf.nioBuffer());
+        return buf.hasMemoryAddress() ? buf.memoryAddress() :
+                // Use internalNioBuffer to reduce object creation.
+                Buffer.address(buf.internalNioBuffer(0, buf.readableBytes()));
     }
 
     private OpenSsl() { }
@@ -569,7 +575,7 @@ public final class OpenSsl {
 
         // First, try loading the platform-specific library. Platform-specific
         // libraries will be available if using a tcnative uber jar.
-        if ("linux".equalsIgnoreCase(os)) {
+        if ("linux".equals(os)) {
             Set<String> classifiers = PlatformDependent.normalizedLinuxClassifiers();
             for (String classifier : classifiers) {
                 libNames.add(staticLibName + "_" + os + '_' + arch + "_" + classifier);
